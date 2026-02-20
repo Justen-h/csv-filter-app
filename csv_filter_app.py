@@ -3,7 +3,9 @@ import pandas as pd
 import tempfile
 import os
 
-st.title("Kolomfilter voor grote CSV-bestanden")
+st.title("The Shredder")
+st.subheader("Jouw partner om moeiteloos onnodige kolommen uit grote CSV-bestanden te slopen.")
+
 
 # Upload CSV-bestand
 uploaded_file = st.file_uploader("Upload een CSV-bestand", type="csv")
@@ -47,3 +49,4 @@ if uploaded_file:
 
             # Opruimen na download
             os.remove(output_file)
+
