@@ -1,52 +1,52 @@
 import streamlit as st
 import pandas as pd
-import tempfile
-import os
+import io
 
 st.title("The Shredder")
 st.subheader("Jouw partner om moeiteloos onnodige kolommen uit grote CSV-bestanden te slopen.")
 
-
-# Upload CSV-bestand
 uploaded_file = st.file_uploader("Upload een CSV-bestand", type="csv")
 
-# Verwerk bestand als het is geüpload
 if uploaded_file:
-    # Lees een klein stukje van het bestand in om kolommen te tonen
-    df_sample = pd.read_csv(uploaded_file, nrows=1000)
+    # 1. Lees kolommen in (slechts de eerste rij om geheugen te sparen)
+    df_sample = pd.read_csv(uploaded_file, nrows=0)
     kolommen = df_sample.columns.tolist()
+    
+    # Reset de pointer direct na het lezen van de kolommen
+    uploaded_file.seek(0)
 
-    # Kolommen selecteren
     keep_columns = st.multiselect("Selecteer de kolommen die je wilt behouden", kolommen)
 
     if keep_columns:
         if st.button("Genereer gefilterd CSV-bestand"):
+            # Maak een in-memory buffer aan
+            output = io.StringIO()
+            
             chunksize = 100000
-
-            # Tijdelijk bestand aanmaken
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-                output_file = tmp.name
-
-            # Heropen het bestand (we moeten opnieuw beginnen bij begin)
-            uploaded_file.seek(0)
-
+            
+            # Voortgangsbalk toevoegen (optioneel, maar fijn voor de gebruiker)
+            progress_bar = st.progress(0)
+            
             # Chunkwise verwerken
-            with pd.read_csv(uploaded_file, chunksize=chunksize) as reader:
+            try:
+                # We gebruiken een generator om door het bestand te lopen
+                reader = pd.read_csv(uploaded_file, chunksize=chunksize, usecols=keep_columns)
+                
                 for i, chunk in enumerate(reader):
-                    chunk = chunk[keep_columns]
-                    mode = 'w' if i == 0 else 'a'
-                    header = i == 0
-                    chunk.to_csv(output_file, mode=mode, index=False, header=header)
-
-            # Laat download knop zien
-            with open(output_file, "rb") as f:
+                    # Schrijf naar de buffer
+                    header = (i == 0)
+                    chunk.to_csv(output, index=False, header=header, mode='a' if i > 0 else 'w')
+                
+                # Zet de cursor van de buffer weer naar het begin
+                processed_data = output.getvalue()
+                
+                st.success("Bestand is klaar voor download!")
+                
                 st.download_button(
                     label="Download gefilterd CSV-bestand",
-                    data=f,
+                    data=processed_data,
                     file_name="filtered_output.csv",
                     mime="text/csv"
                 )
-
-            # Opruimen na download
-            os.remove(output_file)
-
+            except Exception as e:
+                st.error(f"Er is iets misgegaan: {e}")
